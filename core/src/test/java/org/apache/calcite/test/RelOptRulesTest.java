@@ -93,6 +93,7 @@ import org.apache.calcite.rel.rules.SemiJoinRemoveRule;
 import org.apache.calcite.rel.rules.SemiJoinRule;
 import org.apache.calcite.rel.rules.SortJoinTransposeRule;
 import org.apache.calcite.rel.rules.SortProjectTransposeRule;
+import org.apache.calcite.rel.rules.SortRemoveConstantKeysRule;
 import org.apache.calcite.rel.rules.SortUnionTransposeRule;
 import org.apache.calcite.rel.rules.SubQueryRemoveRule;
 import org.apache.calcite.rel.rules.TableScanRule;
@@ -536,6 +537,30 @@ public class RelOptRulesTest extends RelOptTestBase {
         + "select b.name from dept b\n"
         + "order by name limit 0";
     checkPlanning(program, sql);
+  }
+
+  @Test public void testSortRemovalAllKeysConstant() {
+    final HepProgram program = new HepProgramBuilder()
+        .addRuleInstance(SortRemoveConstantKeysRule.INSTANCE)
+        .build();
+    final String sql = "select count(*) as c\n"
+        + "from sales.emp\n"
+        + "where deptno = 10\n"
+        + "group by deptno, sal\n"
+        + "order by deptno desc nulls last";
+    sql(sql).with(program).check();
+  }
+
+  @Test public void testSortRemovalOneKeyConstant() {
+    final HepProgram program = new HepProgramBuilder()
+        .addRuleInstance(SortRemoveConstantKeysRule.INSTANCE)
+        .build();
+    final String sql = "select count(*) as c\n"
+        + "from sales.emp\n"
+        + "where deptno = 10\n"
+        + "group by deptno, sal\n"
+        + "order by deptno, sal desc nulls first";
+    sql(sql).with(program).check();
   }
 
   @Test public void testSemiJoinRuleExists() {
@@ -1543,6 +1568,28 @@ public class RelOptRulesTest extends RelOptTestBase {
         + "from emp\n"
         + "where deptno=7\n"
         + "and empno = 10 and mgr is null and empno = 10";
+    checkPlanning(program, sql);
+  }
+
+  @Test public void testOrAlwaysTrue() {
+    HepProgram program = new HepProgramBuilder()
+        .addRuleInstance(ReduceExpressionsRule.PROJECT_INSTANCE)
+        .addRuleInstance(ReduceExpressionsRule.FILTER_INSTANCE)
+        .addRuleInstance(ReduceExpressionsRule.JOIN_INSTANCE)
+        .build();
+    final String sql = "select * from EMPNULLABLES_20\n"
+        + "where sal is null or sal is not null";
+    checkPlanning(program, sql);
+  }
+
+  @Test public void testOrAlwaysTrue2() {
+    HepProgram program = new HepProgramBuilder()
+        .addRuleInstance(ReduceExpressionsRule.PROJECT_INSTANCE)
+        .addRuleInstance(ReduceExpressionsRule.FILTER_INSTANCE)
+        .addRuleInstance(ReduceExpressionsRule.JOIN_INSTANCE)
+        .build();
+    final String sql = "select * from EMPNULLABLES_20\n"
+        + "where sal is not null or sal is null";
     checkPlanning(program, sql);
   }
 

@@ -14,34 +14,17 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.calcite.rel.metadata;
+package org.apache.calcite.chinook;
 
-/** Placeholder for null values. */
-public enum NullSentinel {
-  /** Placeholder for a null value. */
-  INSTANCE {
-    @Override public String toString() {
-      return "NULL";
-    }
-  },
+/**
+ * Example UDF for where clause to check pushing to JDBC
+ */
+public class ChosenCustomerEmail {
 
-  /** Placeholder that means that a request for metadata is already active,
-   * therefore this request forms a cycle. */
-  ACTIVE;
-
-  public static Comparable mask(Comparable value) {
-    if (value == null) {
-      return INSTANCE;
-    }
-    return value;
+  public String eval() {
+    return "ftremblay@gmail.com";
   }
 
-  public static Object mask(Object value) {
-    if (value == null) {
-      return INSTANCE;
-    }
-    return value;
-  }
 }
 
-// End NullSentinel.java
+// End ChosenCustomerEmail.java

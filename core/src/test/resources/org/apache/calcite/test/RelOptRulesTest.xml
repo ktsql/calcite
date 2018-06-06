@@ -3076,6 +3076,52 @@ LogicalProject(EXPR$0=[CAST(/($0, $1)):INTEGER NOT NULL])
 ]]>
         </Resource>
     </TestCase>
+    <TestCase name="testOrAlwaysTrue">
+        <Resource name="sql">
+            <![CDATA[select * from EMPNULLABLES_20
+where sal is null or sal is not null]]>
+        </Resource>
+        <Resource name="planBefore">
+            <![CDATA[
+LogicalProject(EMPNO=[$0], ENAME=[$1], JOB=[$2], MGR=[$3], HIREDATE=[$4], SAL=[$5], COMM=[$6], SLACKER=[$7])
+  LogicalFilter(condition=[OR(IS NULL($5), IS NOT NULL($5))])
+    LogicalProject(EMPNO=[$0], ENAME=[$1], JOB=[$2], MGR=[$3], HIREDATE=[$4], SAL=[$5], COMM=[$6], SLACKER=[$8])
+      LogicalFilter(condition=[AND(=($7, 20), >($5, 1000))])
+        LogicalTableScan(table=[[CATALOG, SALES, EMPNULLABLES]])
+]]>
+        </Resource>
+        <Resource name="planAfter">
+            <![CDATA[
+LogicalProject(EMPNO=[$0], ENAME=[$1], JOB=[$2], MGR=[$3], HIREDATE=[$4], SAL=[$5], COMM=[$6], SLACKER=[$7])
+  LogicalProject(EMPNO=[$0], ENAME=[$1], JOB=[$2], MGR=[$3], HIREDATE=[$4], SAL=[$5], COMM=[$6], SLACKER=[$8])
+    LogicalFilter(condition=[AND(=($7, 20), >($5, 1000))])
+      LogicalTableScan(table=[[CATALOG, SALES, EMPNULLABLES]])
+]]>
+        </Resource>
+    </TestCase>
+    <TestCase name="testOrAlwaysTrue2">
+        <Resource name="sql">
+            <![CDATA[select * from EMPNULLABLES_20
+where sal is not null or sal is null]]>
+        </Resource>
+        <Resource name="planBefore">
+            <![CDATA[
+LogicalProject(EMPNO=[$0], ENAME=[$1], JOB=[$2], MGR=[$3], HIREDATE=[$4], SAL=[$5], COMM=[$6], SLACKER=[$7])
+  LogicalFilter(condition=[OR(IS NOT NULL($5), IS NULL($5))])
+    LogicalProject(EMPNO=[$0], ENAME=[$1], JOB=[$2], MGR=[$3], HIREDATE=[$4], SAL=[$5], COMM=[$6], SLACKER=[$8])
+      LogicalFilter(condition=[AND(=($7, 20), >($5, 1000))])
+        LogicalTableScan(table=[[CATALOG, SALES, EMPNULLABLES]])
+]]>
+        </Resource>
+        <Resource name="planAfter">
+            <![CDATA[
+LogicalProject(EMPNO=[$0], ENAME=[$1], JOB=[$2], MGR=[$3], HIREDATE=[$4], SAL=[$5], COMM=[$6], SLACKER=[$7])
+  LogicalProject(EMPNO=[$0], ENAME=[$1], JOB=[$2], MGR=[$3], HIREDATE=[$4], SAL=[$5], COMM=[$6], SLACKER=[$8])
+    LogicalFilter(condition=[AND(=($7, 20), >($5, 1000))])
+      LogicalTableScan(table=[[CATALOG, SALES, EMPNULLABLES]])
+]]>
+        </Resource>
+    </TestCase>
     <TestCase name="testWindowFunctionOnAggregations">
         <Resource name="sql">
             <![CDATA[SELECT
@@ -4495,14 +4541,15 @@ LogicalProject(EXPR$0=[1])
             <![CDATA[
 LogicalProject(EXPR$0=[1])
   LogicalJoin(condition=[=($0, $8)], joinType=[inner])
-    LogicalUnion(all=[true])
-      LogicalProject(DEPTNO=[$7])
-        LogicalFilter(condition=[>($7, 7)])
-          LogicalTableScan(table=[[CATALOG, SALES, EMP]])
-      LogicalProject(DEPTNO=[$7])
-        LogicalFilter(condition=[>($7, 10)])
-          LogicalTableScan(table=[[CATALOG, SALES, EMP]])
-    LogicalFilter(condition=[OR(>($7, 7), >($7, 10))])
+    LogicalFilter(condition=[>($0, 7)])
+      LogicalUnion(all=[true])
+        LogicalProject(DEPTNO=[$7])
+          LogicalFilter(condition=[>($7, 7)])
+            LogicalTableScan(table=[[CATALOG, SALES, EMP]])
+        LogicalProject(DEPTNO=[$7])
+          LogicalFilter(condition=[>($7, 10)])
+            LogicalTableScan(table=[[CATALOG, SALES, EMP]])
+    LogicalFilter(condition=[>($7, 7)])
       LogicalTableScan(table=[[CATALOG, SALES, EMP]])
 ]]>
         </Resource>
@@ -4822,7 +4869,7 @@ LogicalProject(EXPR$0=[1])
       LogicalProject(DEPTNO=[$7])
         LogicalFilter(condition=[>($7, 1)])
           LogicalTableScan(table=[[CATALOG, SALES, EMP]])
-    LogicalFilter(condition=[OR(>($7, 7), >($7, 10), >($7, 1))])
+    LogicalFilter(condition=[OR(>($7, 7), >($7, 1))])
       LogicalTableScan(table=[[CATALOG, SALES, EMP]])
 ]]>
         </Resource>
@@ -6003,8 +6050,7 @@ from sales.emp as A
 join (select mgr, sal, max(hiredate) as hiredate1,
     sum(comm) as comm1 from sales.emp group by mgr, sal) as B
 on A.sal=B.sal
-group by A.job, B.mgr, A.deptno
-]]>
+group by A.job, B.mgr, A.deptno]]>
         </Resource>
         <Resource name="planBefore">
             <![CDATA[
@@ -7559,8 +7605,65 @@ LogicalProject(EMPNO=[$0], ENAME=[$1], JOB=[$2], MGR=[$3], HIREDATE=[$4], SAL=[$
         <Resource name="planAfter">
             <![CDATA[
 LogicalProject(EMPNO=[10], ENAME=[$1], JOB=[$2], MGR=[null], HIREDATE=[$4], SAL=[$5], COMM=[$6], DEPTNO=[7], SLACKER=[$8])
-  LogicalFilter(condition=[AND(=($7, 7), IS NULL($3), =($0, 10))])
+  LogicalFilter(condition=[AND(=($7, 7), =($0, 10), IS NULL($3))])
     LogicalTableScan(table=[[CATALOG, SALES, EMP]])
+]]>
+        </Resource>
+    </TestCase>
+    <TestCase name="testSortRemovalAllKeysConstant">
+        <Resource name="sql">
+            <![CDATA[select count(*) as c
+from sales.emp
+where deptno = 10
+group by deptno, sal
+order by deptno desc nulls last]]>
+        </Resource>
+        <Resource name="planBefore">
+            <![CDATA[
+LogicalSort(sort0=[$1], dir0=[DESC-nulls-last])
+  LogicalProject(C=[$2], DEPTNO=[$0])
+    LogicalAggregate(group=[{0, 1}], C=[COUNT()])
+      LogicalProject(DEPTNO=[$7], SAL=[$5])
+        LogicalFilter(condition=[=($7, 10)])
+          LogicalTableScan(table=[[CATALOG, SALES, EMP]])
+]]>
+        </Resource>
+        <Resource name="planAfter">
+            <![CDATA[
+LogicalProject(C=[$2], DEPTNO=[$0])
+  LogicalAggregate(group=[{0, 1}], C=[COUNT()])
+    LogicalProject(DEPTNO=[$7], SAL=[$5])
+      LogicalFilter(condition=[=($7, 10)])
+        LogicalTableScan(table=[[CATALOG, SALES, EMP]])
+]]>
+        </Resource>
+    </TestCase>
+    <TestCase name="testSortRemovalOneKeyConstant">
+        <Resource name="sql">
+            <![CDATA[select count(*) as c
+from sales.emp
+where deptno = 10
+group by deptno, sal
+order by deptno, sal desc nulls first]]>
+        </Resource>
+        <Resource name="planBefore">
+            <![CDATA[
+LogicalSort(sort0=[$1], sort1=[$2], dir0=[ASC], dir1=[DESC])
+  LogicalProject(C=[$2], DEPTNO=[$0], SAL=[$1])
+    LogicalAggregate(group=[{0, 1}], C=[COUNT()])
+      LogicalProject(DEPTNO=[$7], SAL=[$5])
+        LogicalFilter(condition=[=($7, 10)])
+          LogicalTableScan(table=[[CATALOG, SALES, EMP]])
+]]>
+        </Resource>
+        <Resource name="planAfter">
+            <![CDATA[
+LogicalSort(sort0=[$2], dir0=[DESC])
+  LogicalProject(C=[$2], DEPTNO=[$0], SAL=[$1])
+    LogicalAggregate(group=[{0, 1}], C=[COUNT()])
+      LogicalProject(DEPTNO=[$7], SAL=[$5])
+        LogicalFilter(condition=[=($7, 10)])
+          LogicalTableScan(table=[[CATALOG, SALES, EMP]])
 ]]>
         </Resource>
     </TestCase>
