@@ -133,7 +133,7 @@ public class HepPlanner extends AbstractRelOptPlanner {
     super(costFactory, context);
     this.mainProgram = program;
     this.onCopyHook =
-        Util.first(onCopyHook, Functions.<RelNode, RelNode, Void>ignore2());
+        Util.first(onCopyHook, Functions.ignore2());
     mapDigestToVertex = new HashMap<>();
     graph = DefaultDirectedGraph.create();
 
@@ -232,7 +232,7 @@ public class HepPlanner extends AbstractRelOptPlanner {
 
   void executeInstruction(
       HepInstruction.MatchOrder instruction) {
-    LOGGER.trace("Setting match limit to {}", instruction.order);
+    LOGGER.trace("Setting match order to {}", instruction.order);
     currentProgram.matchOrder = instruction.order;
   }
 
@@ -544,7 +544,7 @@ public class HepPlanner extends AbstractRelOptPlanner {
         new HepRuleCall(
             this,
             rule.getOperand(),
-            bindings.toArray(new RelNode[bindings.size()]),
+            bindings.toArray(new RelNode[0]),
             nodeChildren,
             parents);
 

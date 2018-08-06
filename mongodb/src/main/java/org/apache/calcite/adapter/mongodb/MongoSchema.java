@@ -20,9 +20,7 @@ import org.apache.calcite.schema.Table;
 import org.apache.calcite.schema.impl.AbstractSchema;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
-
 import com.mongodb.MongoClient;
 import com.mongodb.MongoClientOptions;
 import com.mongodb.MongoCredential;
@@ -31,6 +29,7 @@ import com.mongodb.client.MongoDatabase;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * Schema mapped onto a directory of MONGO files. Each table in the schema
@@ -43,9 +42,11 @@ public class MongoSchema extends AbstractSchema {
    * Creates a MongoDB schema.
    *
    * @param host Mongo host, e.g. "localhost"
+   * @param credentialsList Optional credentials (empty list for none)
+   * @param options Mongo connection options
    * @param database Mongo database name, e.g. "foodmart"
    */
-  public MongoSchema(String host, String database,
+  MongoSchema(String host, String database,
       List<MongoCredential> credentialsList, MongoClientOptions options) {
     super();
     try {
@@ -65,7 +66,7 @@ public class MongoSchema extends AbstractSchema {
   @VisibleForTesting
   MongoSchema(MongoDatabase mongoDb) {
     super();
-    this.mongoDb = Preconditions.checkNotNull(mongoDb, "mongoDb");
+    this.mongoDb = Objects.requireNonNull(mongoDb, "mongoDb");
   }
 
   @Override protected Map<String, Table> getTableMap() {

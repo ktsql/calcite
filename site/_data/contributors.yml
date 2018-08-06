@@ -107,7 +107,7 @@
   apacheId: krisden
   githubId: risdenk
   org:
-  role: Committer
+  role: PMC
 - name: Laurent Goujon
   apacheId: laurent
   githubId: laurentgo
@@ -146,6 +146,11 @@
   githubId: nishantmonu51
   org: Hortonworks
   role: Committer
+- name: Sergey Nuyanzin
+  apacheId: snuyanzin
+  githubId: snuyanzin
+  org: EPAM
+  role: Committer
 - name: Shuyi Chen
   apacheId: shuyichen
   githubId: suez1224
@@ -176,7 +181,7 @@
   apacheId: volodymyr
   githubId: vvysotskyi
   org:
-  role: Committer
+  role: PMC
 - name: Zhen Wang
   apacheId: zhenw
   githubId: zinking
