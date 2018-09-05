@@ -438,16 +438,18 @@ public class RexSimplify {
   }
 
   private RexNode simplifyIs2(SqlKind kind, RexNode a) {
+    final RexNode simplified;
     switch (kind) {
     case IS_NULL:
       // x IS NULL ==> FALSE (if x is not nullable)
-      if (!a.getType().isNullable()) {
-        return rexBuilder.makeLiteral(false);
+      simplified = simplifyIsNull(a);
+      if (simplified != null) {
+        return simplified;
       }
       break;
     case IS_NOT_NULL:
       // x IS NOT NULL ==> TRUE (if x is not nullable)
-      RexNode simplified = simplifyIsNotNull(a);
+      simplified = simplifyIsNotNull(a);
       if (simplified != null) {
         return simplified;
       }
@@ -496,7 +498,11 @@ public class RexSimplify {
       return rexBuilder.makeLiteral(true);
     }
     switch (Strong.policy(a.getKind())) {
+    case NOT_NULL:
+      return rexBuilder.makeLiteral(true);
     case ANY:
+      // "f" is a strong operator, so "f(operand0, operand1) IS NOT NULL"
+      // simplifies to "operand0 IS NOT NULL AND operand1 IS NOT NULL"
       final List<RexNode> operands = new ArrayList<>();
       for (RexNode operand : ((RexCall) a).getOperands()) {
         final RexNode simplified = simplifyIsNotNull(operand);
@@ -518,6 +524,33 @@ public class RexSimplify {
         throw new AssertionError("every CUSTOM policy needs a handler, "
             + a.getKind());
       }
+    case AS_IS:
+    default:
+      return null;
+    }
+  }
+
+  private RexNode simplifyIsNull(RexNode a) {
+    if (!a.getType().isNullable()) {
+      return rexBuilder.makeLiteral(false);
+    }
+    switch (Strong.policy(a.getKind())) {
+    case NOT_NULL:
+      return rexBuilder.makeLiteral(false);
+    case ANY:
+      // "f" is a strong operator, so "f(operand0, operand1) IS NULL" simplifies
+      // to "operand0 IS NULL OR operand1 IS NULL"
+      final List<RexNode> operands = new ArrayList<>();
+      for (RexNode operand : ((RexCall) a).getOperands()) {
+        final RexNode simplified = simplifyIsNull(operand);
+        if (simplified == null) {
+          operands.add(
+              rexBuilder.makeCall(SqlStdOperatorTable.IS_NULL, operand));
+        } else {
+          operands.add(simplified);
+        }
+      }
+      return RexUtil.composeDisjunction(rexBuilder, operands, false);
     case AS_IS:
     default:
       return null;
@@ -718,11 +751,35 @@ public class RexSimplify {
     // Example #1. x AND y AND z AND NOT (x AND y)  - not satisfiable
     // Example #2. x AND y AND NOT (x AND y)        - not satisfiable
     // Example #3. x AND y AND NOT (x AND y AND z)  - may be satisfiable
+    List<RexNode> notSatisfiableNullables = null;
     for (RexNode notDisjunction : notTerms) {
       final List<RexNode> terms2 = RelOptUtil.conjunctions(notDisjunction);
-      if (terms.containsAll(terms2)) {
+      if (!terms.containsAll(terms2)) {
+        // may be satisfiable ==> check other terms
+        continue;
+      }
+      if (!notDisjunction.getType().isNullable()) {
+        // x is NOT nullable, then x AND NOT(x) ==> FALSE
         return rexBuilder.makeLiteral(false);
       }
+      // x AND NOT(x) is UNKNOWN for NULL input
+      // So we search for the shortest notDisjunction then convert
+      // original expression to NULL and x IS NULL
+      if (notSatisfiableNullables == null) {
+        notSatisfiableNullables = new ArrayList<>();
+      }
+      notSatisfiableNullables.add(notDisjunction);
+    }
+    if (notSatisfiableNullables != null) {
+      terms.removeAll(notSatisfiableNullables);
+      terms.add(rexBuilder.makeNullLiteral(notSatisfiableNullables.get(0).getType()));
+      for (RexNode notSatisfiableNullable : notSatisfiableNullables) {
+        terms.add(
+            simplifyIs((RexCall)
+                rexBuilder.makeCall(SqlStdOperatorTable.IS_NULL, notSatisfiableNullable)));
+      }
+      // NULL AND (x IS NULL)
+      return rexBuilder.makeCall(SqlStdOperatorTable.AND, terms);
     }
     // Add the NOT disjunctions back in.
     for (RexNode notDisjunction : notTerms) {

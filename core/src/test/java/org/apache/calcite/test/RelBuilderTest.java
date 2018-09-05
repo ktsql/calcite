@@ -16,6 +16,7 @@
  */
 package org.apache.calcite.test;
 
+import org.apache.calcite.jdbc.CalciteConnection;
 import org.apache.calcite.plan.RelTraitDef;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.core.AggregateCall;
@@ -33,16 +34,21 @@ import org.apache.calcite.rex.RexInputRef;
 import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.runtime.CalciteException;
 import org.apache.calcite.schema.SchemaPlus;
+import org.apache.calcite.schema.impl.ViewTable;
+import org.apache.calcite.schema.impl.ViewTableMacro;
 import org.apache.calcite.sql.SqlMatchRecognize;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
 import org.apache.calcite.sql.parser.SqlParser;
 import org.apache.calcite.sql.type.SqlTypeName;
+import org.apache.calcite.tools.FrameworkConfig;
 import org.apache.calcite.tools.Frameworks;
 import org.apache.calcite.tools.Programs;
 import org.apache.calcite.tools.RelBuilder;
+import org.apache.calcite.tools.RelRunner;
 import org.apache.calcite.tools.RelRunners;
 import org.apache.calcite.util.Holder;
 import org.apache.calcite.util.ImmutableBitSet;
+import org.apache.calcite.util.Util;
 import org.apache.calcite.util.mapping.Mappings;
 
 import com.google.common.collect.ImmutableList;
@@ -50,11 +56,17 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 
+import org.junit.Ignore;
 import org.junit.Test;
 
+import java.sql.Connection;
+import java.sql.DriverManager;
 import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.TreeSet;
 
 import static org.apache.calcite.test.Matchers.hasTree;
@@ -62,6 +74,7 @@ import static org.apache.calcite.test.Matchers.hasTree;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.assertThat;
+import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 /**
@@ -796,9 +809,8 @@ public class RelBuilderTest {
             .build();
     final String expected = ""
         + "LogicalAggregate(group=[{0}])\n"
-        + "  LogicalProject(departmentNo=[$0])\n"
-        + "    LogicalProject(DEPTNO=[$7])\n"
-        + "      LogicalTableScan(table=[[scott, EMP]])\n";
+        + "  LogicalProject(departmentNo=[$7])\n"
+        + "    LogicalTableScan(table=[[scott, EMP]])\n";
     assertThat(root, hasTree(expected));
   }
 
@@ -816,10 +828,8 @@ public class RelBuilderTest {
             .build();
     final String expected = ""
         + "LogicalAggregate(group=[{1}])\n"
-        + "  LogicalProject(DEPTNO=[$0], d3=[$1])\n"
-        + "    LogicalProject(DEPTNO=[$0], $f1=[+($0, 3)])\n"
-        + "      LogicalProject(DEPTNO=[$7])\n"
-        + "        LogicalTableScan(table=[[scott, EMP]])\n";
+        + "  LogicalProject(DEPTNO=[$7], d3=[+($7, 3)])\n"
+        + "    LogicalTableScan(table=[[scott, EMP]])\n";
     assertThat(root, hasTree(expected));
   }
 
@@ -1385,8 +1395,53 @@ public class RelBuilderTest {
             .project(builder.field("EMP_alias", "DEPTNO"))
             .build();
     final String expected = ""
-        + "LogicalProject(DEPTNO=[$0])\n"
-        + "  LogicalProject(DEPTNO=[$7], $f1=[20])\n"
+        + "LogicalProject(DEPTNO=[$7])\n"
+        + "  LogicalTableScan(table=[[scott, EMP]])\n";
+    assertThat(root, hasTree(expected));
+  }
+
+  /** Tests that table aliases are propagated even when there is a project on
+   * top of a project. (Aliases tend to get lost when projects are merged). */
+  @Test public void testAliasProjectProject() {
+    final RelBuilder builder = RelBuilder.create(config().build());
+    RelNode root =
+        builder.scan("EMP")
+            .as("EMP_alias")
+            .project(builder.field("DEPTNO"),
+                builder.literal(20))
+            .project(builder.field(1),
+                builder.literal(10),
+                builder.field(0))
+            .project(builder.alias(builder.field(1), "sum"),
+                builder.field("EMP_alias", "DEPTNO"))
+            .build();
+    final String expected = ""
+        + "LogicalProject(sum=[10], DEPTNO=[$7])\n"
+        + "  LogicalTableScan(table=[[scott, EMP]])\n";
+    assertThat(root, hasTree(expected));
+  }
+
+  /** Tests that table aliases are propagated and are available to a filter,
+   * even when there is a project on top of a project. (Aliases tend to get lost
+   * when projects are merged). */
+  @Test public void testAliasFilter() {
+    final RelBuilder builder = RelBuilder.create(config().build());
+    RelNode root =
+        builder.scan("EMP")
+            .as("EMP_alias")
+            .project(builder.field("DEPTNO"),
+                builder.literal(20))
+            .project(builder.field(1), // literal 20
+                builder.literal(10),
+                builder.field(0)) // DEPTNO
+            .filter(
+                builder.call(SqlStdOperatorTable.GREATER_THAN,
+                    builder.field(1),
+                    builder.field("EMP_alias", "DEPTNO")))
+            .build();
+    final String expected = ""
+        + "LogicalFilter(condition=[>($1, $2)])\n"
+        + "  LogicalProject($f1=[20], $f12=[10], DEPTNO=[$7])\n"
         + "    LogicalTableScan(table=[[scott, EMP]])\n";
     assertThat(root, hasTree(expected));
   }
@@ -1434,6 +1489,27 @@ public class RelBuilderTest {
         + "  LogicalJoin(condition=[true], joinType=[inner])\n"
         + "    LogicalTableScan(table=[[scott, EMP]])\n"
         + "    LogicalTableScan(table=[[scott, DEPT]])\n";
+    assertThat(root, hasTree(expected));
+  }
+
+  /** Tests that a projection after a projection. */
+  @Test public void testProjectProject() {
+    final RelBuilder builder = RelBuilder.create(config().build());
+    RelNode root =
+        builder.scan("EMP")
+            .as("e")
+            .projectPlus(
+                builder.alias(
+                    builder.call(SqlStdOperatorTable.PLUS, builder.field(0),
+                        builder.field(3)), "x"))
+            .project(builder.field("e", "DEPTNO"),
+                builder.field(0),
+                builder.field("e", "MGR"),
+                Util.last(builder.fields()))
+            .build();
+    final String expected = ""
+        + "LogicalProject(DEPTNO=[$7], EMPNO=[$0], MGR=[$3], x=[+($0, $3)])\n"
+        + "  LogicalTableScan(table=[[scott, EMP]])\n";
     assertThat(root, hasTree(expected));
   }
 
@@ -2085,6 +2161,44 @@ public class RelBuilderTest {
         + "  LogicalTableScan(table=[[scott, EMP]])\n";
     assertThat(root, hasTree(expected));
   }
+
+  /**
+   * Ensures that relational algebra ({@link RelBuilder}) works with SQL views.
+   *
+   * <p>This test currently fails (thus ignored).
+   */
+  @Ignore("https://issues.apache.org/jira/browse/CALCITE-2441")
+  @Test public void testExpandViewInRelBuilder() throws Exception {
+    final Connection connection = DriverManager.getConnection("jdbc:calcite:");
+    final SchemaPlus root = connection.unwrap(CalciteConnection.class).getRootSchema();
+    CalciteAssert.SchemaSpec spec = CalciteAssert.SchemaSpec.SCOTT;
+    CalciteAssert.addSchema(root, spec);
+    final String viewSql =
+        String.format(Locale.ROOT, "select * from \"%s\".\"%s\" where 1=1",
+            spec.schemaName, "EMP");
+
+    // create view
+    ViewTableMacro macro = ViewTable.viewMacro(root, viewSql,
+        Collections.singletonList("test"), Arrays.asList("test", "view"), false);
+
+    // register view (in root schema)
+    root.add("MYVIEW", macro);
+
+    FrameworkConfig config = Frameworks.newConfigBuilder().defaultSchema(root).build();
+    RelNode node = RelBuilder.create(config).scan("MYVIEW").build();
+
+    int count = 0;
+    try (PreparedStatement statement =
+             connection.unwrap(RelRunner.class).prepare(node);
+        ResultSet resultSet = statement.executeQuery()) {
+      while (resultSet.next()) {
+        count++;
+      }
+    }
+
+    assertTrue(count > 1);
+  }
+
 }
 
 // End RelBuilderTest.java

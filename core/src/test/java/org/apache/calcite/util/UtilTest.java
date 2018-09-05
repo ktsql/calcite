@@ -74,12 +74,14 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.NavigableMap;
 import java.util.NavigableSet;
 import java.util.Objects;
 import java.util.Properties;
 import java.util.Random;
 import java.util.RandomAccess;
 import java.util.Set;
+import java.util.SortedMap;
 import java.util.SortedSet;
 import java.util.TimeZone;
 import java.util.TreeSet;
@@ -1654,6 +1656,8 @@ public class UtilTest {
   }
 
   private NavigableSet<String> checkNav(NavigableSet<String> set, String s) {
+    // Note this does not support some unicode characters
+    // however it is fine for testing purposes
     return set.subSet(s.toUpperCase(Locale.ROOT), true,
         s.toLowerCase(Locale.ROOT), true);
   }
@@ -2000,12 +2004,165 @@ public class UtilTest {
     assertThat(Iterables.size(names.iterable()), is(1));
     names.add("Baz");
     names.add("Abcde");
+    names.add("WOMBAT");
     names.add("Zymurgy");
-    assertThat(Iterables.size(names.iterable()), is(4));
+    assertThat(names.toString(), is("[Abcde, Baz, baz, WOMBAT, Zymurgy]"));
+    assertThat(Iterables.size(names.iterable()), is(5));
     assertThat(names.range("baz", false).size(), is(2));
     assertThat(names.range("baz", true).size(), is(1));
     assertThat(names.range("BAZ", true).size(), is(0));
     assertThat(names.range("Baz", true).size(), is(1));
+    assertThat(names.contains("baz", true), is(true));
+    assertThat(names.contains("baz", false), is(true));
+    assertThat(names.contains("BAZ", true), is(false));
+    assertThat(names.contains("BAZ", false), is(true));
+    assertThat(names.contains("abcde", true), is(false));
+    assertThat(names.contains("abcde", false), is(true));
+    assertThat(names.contains("ABCDE", true), is(false));
+    assertThat(names.contains("ABCDE", false), is(true));
+    assertThat(names.contains("wombat", true), is(false));
+    assertThat(names.contains("wombat", false), is(true));
+    assertThat(names.contains("womBat", true), is(false));
+    assertThat(names.contains("womBat", false), is(true));
+    assertThat(names.contains("WOMBAT", true), is(true));
+    assertThat(names.contains("WOMBAT", false), is(true));
+    assertThat(names.contains("zyMurgy", true), is(false));
+    assertThat(names.contains("zyMurgy", false), is(true));
+
+    // [CALCITE-2481] NameSet assumes lowercase characters have greater codes
+    // which does not hold for certain characters
+    checkCase0("a");
+    checkCase0("\u00b5"); // "µ"
+  }
+
+  private void checkCase0(String s) {
+    checkCase1(s);
+    checkCase1(s.toUpperCase(Locale.ROOT));
+    checkCase1(s.toLowerCase(Locale.ROOT));
+    checkCase1("a" + s + "z");
+  }
+
+  private void checkCase1(String s) {
+    final NameSet set = new NameSet();
+    set.add(s);
+    checkNameSet(s, set);
+
+    set.add("");
+    checkNameSet(s, set);
+
+    set.add("zzz");
+    checkNameSet(s, set);
+
+    final NameMap<Integer> map = new NameMap<>();
+    map.put(s, 1);
+    checkNameMap(s, map);
+
+    map.put("", 11);
+    checkNameMap(s, map);
+
+    map.put("zzz", 21);
+    checkNameMap(s, map);
+
+    final NameMultimap<Integer> multimap = new NameMultimap<>();
+    multimap.put(s, 1);
+    checkNameMultimap(s, multimap);
+
+    multimap.put("", 11);
+    checkNameMultimap(s, multimap);
+
+    multimap.put("zzz", 21);
+    checkNameMultimap(s, multimap);
+  }
+
+  private void checkNameSet(String s, NameSet set) {
+    final String upper = s.toUpperCase(Locale.ROOT);
+    final String lower = s.toLowerCase(Locale.ROOT);
+    final boolean isUpper = upper.equals(s);
+    final boolean isLower = lower.equals(s);
+    assertThat(set.contains(s, true), is(true));
+    assertThat(set.contains(s, false), is(true));
+    assertThat(set.contains(upper, false), is(true));
+    assertThat(set.contains(upper, true), is(isUpper));
+    assertThat(set.contains(lower, false), is(true));
+    assertThat(set.contains(lower, true), is(isLower));
+
+    // Create a copy of NameSet, to avoid polluting further tests
+    final NameSet set2 = new NameSet();
+    for (String name : set.iterable()) {
+      set2.add(name);
+    }
+    set2.add(upper);
+    set2.add(lower);
+    final Collection<String> rangeInsensitive = set2.range(s, false);
+    assertThat(rangeInsensitive.contains(s), is(true));
+    assertThat(rangeInsensitive.contains(upper), is(true));
+    assertThat(rangeInsensitive.contains(lower), is(true));
+    final Collection<String> rangeSensitive = set2.range(s, true);
+    assertThat(rangeSensitive.contains(s), is(true));
+    assertThat(rangeSensitive.contains(upper), is(isUpper));
+    assertThat(rangeSensitive.contains(lower), is(isLower));
+  }
+
+  private void checkNameMap(String s, NameMap<Integer> map) {
+    final String upper = s.toUpperCase(Locale.ROOT);
+    final String lower = s.toLowerCase(Locale.ROOT);
+    boolean isUpper = upper.equals(s);
+    boolean isLower = lower.equals(s);
+    assertThat(map.containsKey(s, true), is(true));
+    assertThat(map.containsKey(s, false), is(true));
+    assertThat(map.containsKey(upper, false), is(true));
+    assertThat(map.containsKey(upper, true), is(isUpper));
+    assertThat(map.containsKey(lower, false), is(true));
+    assertThat(map.containsKey(lower, true), is(isLower));
+
+    // Create a copy of NameMap, to avoid polluting further tests
+    final NameMap<Integer> map2 = new NameMap<>();
+    for (Map.Entry<String, Integer> entry : map.map().entrySet()) {
+      map2.put(entry.getKey(), entry.getValue());
+    }
+    map2.put(upper, 2);
+    map2.put(lower, 3);
+    final NavigableMap<String, Integer> rangeInsensitive =
+        map2.range(s, false);
+    assertThat(rangeInsensitive.containsKey(s), is(true));
+    assertThat(rangeInsensitive.containsKey(upper), is(true));
+    assertThat(rangeInsensitive.containsKey(lower), is(true));
+    final NavigableMap<String, Integer> rangeSensitive = map2.range(s, true);
+    assertThat(rangeSensitive.containsKey(s), is(true));
+    assertThat(rangeSensitive.containsKey(upper), is(isUpper));
+    assertThat(rangeSensitive.containsKey(lower), is(isLower));
+  }
+
+  private void checkNameMultimap(String s, NameMultimap<Integer> map) {
+    final String upper = s.toUpperCase(Locale.ROOT);
+    final String lower = s.toLowerCase(Locale.ROOT);
+    boolean isUpper = upper.equals(s);
+    boolean isLower = lower.equals(s);
+    assertThat(map.containsKey(s, true), is(true));
+    assertThat(map.containsKey(s, false), is(true));
+    assertThat(map.containsKey(upper, false), is(true));
+    assertThat(map.containsKey(upper, true), is(isUpper));
+    assertThat(map.containsKey(lower, false), is(true));
+    assertThat(map.containsKey(lower, true), is(isLower));
+
+    // Create a copy of NameMultimap, to avoid polluting further tests
+    final NameMap<Integer> map2 = new NameMap<>();
+    for (Map.Entry<String, List<Integer>> entry : map.map().entrySet()) {
+      for (Integer integer : entry.getValue()) {
+        map2.put(entry.getKey(), integer);
+      }
+    }
+    map2.put(upper, 2);
+    map2.put(lower, 3);
+    final NavigableMap<String, Integer> rangeInsensitive =
+        map2.range(s, false);
+    assertThat(rangeInsensitive.containsKey(s), is(true));
+    assertThat(rangeInsensitive.containsKey(upper), is(true));
+    assertThat(rangeInsensitive.containsKey(lower), is(true));
+    final NavigableMap<String, Integer> rangeSensitive = map2.range(s, true);
+    assertThat(rangeSensitive.containsKey(s), is(true));
+    assertThat(rangeSensitive.containsKey(upper), is(isUpper));
+    assertThat(rangeSensitive.containsKey(lower), is(isLower));
   }
 
   /** Unit test for {@link org.apache.calcite.util.NameMap}. */
@@ -2039,14 +2196,30 @@ public class UtilTest {
     assertThat(map.map().size(), is(1));
     map.put("Baz", 1);
     map.put("Abcde", 2);
+    map.put("WOMBAT", 4);
     map.put("Zymurgy", 3);
-    assertThat(map.map().size(), is(4));
-    assertThat(map.map().entrySet().size(), is(4));
-    assertThat(map.map().keySet().size(), is(4));
+    assertThat(map.toString(),
+        is("{Abcde=2, Baz=1, baz=0, WOMBAT=4, Zymurgy=3}"));
+    assertThat(map.map().size(), is(5));
+    assertThat(map.map().entrySet().size(), is(5));
+    assertThat(map.map().keySet().size(), is(5));
     assertThat(map.range("baz", false).size(), is(2));
     assertThat(map.range("baz", true).size(), is(1));
     assertThat(map.range("BAZ", true).size(), is(0));
     assertThat(map.range("Baz", true).size(), is(1));
+    assertThat(map.containsKey("baz", true), is(true));
+    assertThat(map.containsKey("baz", false), is(true));
+    assertThat(map.containsKey("BAZ", true), is(false));
+    assertThat(map.containsKey("BAZ", false), is(true));
+    assertThat(map.containsKey("abcde", true), is(false));
+    assertThat(map.containsKey("abcde", false), is(true));
+    assertThat(map.containsKey("ABCDE", true), is(false));
+    assertThat(map.containsKey("ABCDE", false), is(true));
+    assertThat(map.containsKey("wombat", true), is(false));
+    assertThat(map.containsKey("wombat", false), is(true));
+    assertThat(map.containsKey("womBat", false), is(true));
+    assertThat(map.containsKey("zyMurgy", true), is(false));
+    assertThat(map.containsKey("zyMurgy", false), is(true));
   }
 
   /** Unit test for {@link org.apache.calcite.util.NameMultimap}. */
@@ -2082,14 +2255,31 @@ public class UtilTest {
     assertThat(map.map().size(), is(2));
     map.put("Baz", 1);
     map.put("Abcde", 2);
+    map.put("WOMBAT", 4);
     map.put("Zymurgy", 3);
-    assertThat(map.map().size(), is(5));
-    assertThat(map.map().entrySet().size(), is(5));
-    assertThat(map.map().keySet().size(), is(5));
+    final String expected = "{Abcde=[2], BAz=[0], Baz=[1], baz=[0, 0],"
+        + " WOMBAT=[4], Zymurgy=[3]}";
+    assertThat(map.toString(), is(expected));
+    assertThat(map.map().size(), is(6));
+    assertThat(map.map().entrySet().size(), is(6));
+    assertThat(map.map().keySet().size(), is(6));
     assertThat(map.range("baz", false).size(), is(4));
     assertThat(map.range("baz", true).size(), is(2));
     assertThat(map.range("BAZ", true).size(), is(0));
     assertThat(map.range("Baz", true).size(), is(1));
+    assertThat(map.containsKey("baz", true), is(true));
+    assertThat(map.containsKey("baz", false), is(true));
+    assertThat(map.containsKey("BAZ", true), is(false));
+    assertThat(map.containsKey("BAZ", false), is(true));
+    assertThat(map.containsKey("abcde", true), is(false));
+    assertThat(map.containsKey("abcde", false), is(true));
+    assertThat(map.containsKey("ABCDE", true), is(false));
+    assertThat(map.containsKey("ABCDE", false), is(true));
+    assertThat(map.containsKey("wombat", true), is(false));
+    assertThat(map.containsKey("wombat", false), is(true));
+    assertThat(map.containsKey("womBat", false), is(true));
+    assertThat(map.containsKey("zyMurgy", true), is(false));
+    assertThat(map.containsKey("zyMurgy", false), is(true));
   }
 
   @Test public void testNlsStringClone() {
@@ -2198,6 +2388,44 @@ public class UtilTest {
         isIterable(Collections.singletonList(null)));
     assertThat(Util.filter(nullBeatles, Objects::nonNull),
         isIterable(Arrays.asList("John", "Paul", "Ringo")));
+  }
+
+  @Test public void testEquivalenceSet() {
+    final EquivalenceSet<String> c = new EquivalenceSet<>();
+    assertThat(c.size(), is(0));
+    assertThat(c.classCount(), is(0));
+    c.add("abc");
+    assertThat(c.size(), is(1));
+    assertThat(c.classCount(), is(1));
+    c.add("Abc");
+    assertThat(c.size(), is(2));
+    assertThat(c.classCount(), is(2));
+    assertThat(c.areEquivalent("abc", "Abc"), is(false));
+    assertThat(c.areEquivalent("abc", "abc"), is(true));
+    assertThat(c.areEquivalent("abc", "ABC"), is(false));
+    c.equiv("abc", "ABC");
+    assertThat(c.size(), is(3));
+    assertThat(c.classCount(), is(2));
+    assertThat(c.areEquivalent("abc", "ABC"), is(true));
+    assertThat(c.areEquivalent("ABC", "abc"), is(true));
+    assertThat(c.areEquivalent("abc", "abc"), is(true));
+    assertThat(c.areEquivalent("abc", "Abc"), is(false));
+    c.equiv("Abc", "ABC");
+    assertThat(c.size(), is(3));
+    assertThat(c.classCount(), is(1));
+    assertThat(c.areEquivalent("abc", "Abc"), is(true));
+
+    c.add("de");
+    c.equiv("fg", "fG");
+    assertThat(c.size(), is(6));
+    assertThat(c.classCount(), is(3));
+    final SortedMap<String, SortedSet<String>> map = c.map();
+    assertThat(map.toString(),
+        is("{ABC=[ABC, Abc, abc], de=[de], fG=[fG, fg]}"));
+
+    c.clear();
+    assertThat(c.size(), is(0));
+    assertThat(c.classCount(), is(0));
   }
 
   private static <E> Matcher<Iterable<E>> isIterable(final Iterable<E> iterable) {

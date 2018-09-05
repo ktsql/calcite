@@ -38,7 +38,9 @@ import org.apache.calcite.runtime.GeoFunctions;
 import org.apache.calcite.runtime.Hook;
 import org.apache.calcite.schema.Schema;
 import org.apache.calcite.schema.SchemaPlus;
+import org.apache.calcite.schema.TableFunction;
 import org.apache.calcite.schema.impl.AbstractSchema;
+import org.apache.calcite.schema.impl.TableFunctionImpl;
 import org.apache.calcite.schema.impl.ViewTable;
 import org.apache.calcite.schema.impl.ViewTableMacro;
 import org.apache.calcite.sql.validate.SqlConformanceEnum;
@@ -49,6 +51,8 @@ import org.apache.calcite.util.Closer;
 import org.apache.calcite.util.Holder;
 import org.apache.calcite.util.JsonBuilder;
 import org.apache.calcite.util.Pair;
+import org.apache.calcite.util.Smalls;
+import org.apache.calcite.util.Sources;
 import org.apache.calcite.util.Util;
 
 import org.apache.commons.dbcp2.PoolableConnectionFactory;
@@ -72,6 +76,7 @@ import java.io.StringWriter;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
+import java.net.URL;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
@@ -775,6 +780,28 @@ public class CalciteAssert {
               ImmutableList.of(), ImmutableList.of("POST", "EMPS"),
               null));
       return post;
+    case AUX:
+      SchemaPlus aux =
+          rootSchema.add(schema.schemaName, new AbstractSchema());
+      TableFunction tableFunction =
+          TableFunctionImpl.create(Smalls.SimpleTableFunction.class, "eval");
+      aux.add("TBLFUN", tableFunction);
+      final String simpleSql = "select *\n"
+          + "from (values\n"
+          + "    ('ABC', 1),\n"
+          + "    ('DEF', 2),\n"
+          + "    ('GHI', 3))\n"
+          + "  as t(strcol, intcol)";
+      aux.add("SIMPLETABLE",
+          ViewTable.viewMacro(aux, simpleSql, ImmutableList.of(),
+              ImmutableList.of("AUX", "SIMPLETABLE"), null));
+      final String lateralSql = "SELECT *\n"
+          + "FROM AUX.SIMPLETABLE ST\n"
+          + "CROSS JOIN LATERAL TABLE(AUX.TBLFUN(ST.INTCOL))";
+      aux.add("VIEWLATERAL",
+          ViewTable.viewMacro(aux, lateralSql, ImmutableList.of(),
+              ImmutableList.of("AUX", "VIEWLATERAL"), null));
+      return aux;
     default:
       throw new AssertionError("unknown schema " + schema);
     }
@@ -860,6 +887,8 @@ public class CalciteAssert {
         return with(SchemaSpec.SCOTT);
       case SPARK:
         return with(CalciteConnectionProperty.SPARK, true);
+      case AUX:
+        return with(SchemaSpec.AUX, SchemaSpec.POST);
       default:
         throw Util.unexpected(config);
       }
@@ -921,6 +950,11 @@ public class CalciteAssert {
 
     public final AssertThat withModel(String model) {
       return with(CalciteConnectionProperty.MODEL, "inline:" + model);
+    }
+
+    public final AssertThat withModel(URL model) {
+      return with(CalciteConnectionProperty.MODEL,
+          Sources.of(model).file().getAbsolutePath());
     }
 
     public final AssertThat withMaterializations(String model,
@@ -1329,7 +1363,6 @@ public class CalciteAssert {
             hooks, checker, null, null);
         return this;
       } catch (Exception e) {
-        e.printStackTrace();
         throw new RuntimeException(
             "exception while executing [" + sql + "]", e);
       }
@@ -1660,6 +1693,10 @@ public class CalciteAssert {
 
     /** Configuration that loads Spark. */
     SPARK,
+
+    /** Configuration that loads AUX schema for tests involving view expansions
+     * and lateral joins tests. */
+    AUX
   }
 
   /** Implementation of {@link AssertQuery} that does nothing. */
@@ -1779,7 +1816,8 @@ public class CalciteAssert {
     BLANK("BLANK"),
     LINGUAL("SALES"),
     POST("POST"),
-    ORINOCO("ORINOCO");
+    ORINOCO("ORINOCO"),
+    AUX("AUX");
 
     /** The name of the schema that is usually created from this specification.
      * (Names are not unique, and you can use another name if you wish.) */
