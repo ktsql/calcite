@@ -28,6 +28,7 @@ import org.apache.calcite.sql.SqlKind;
 import org.apache.calcite.sql.SqlOperator;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
 import org.apache.calcite.sql.type.SqlTypeName;
+import org.apache.calcite.sql.type.SqlTypeUtil;
 import org.apache.calcite.util.Bug;
 import org.apache.calcite.util.Pair;
 import org.apache.calcite.util.Util;
@@ -61,6 +62,7 @@ public class RexSimplify {
   final boolean unknownAsFalse;
   final boolean predicateElimination;
   private final RexExecutor executor;
+  private final Strong strong;
 
   /**
    * Creates a RexSimplify.
@@ -85,6 +87,7 @@ public class RexSimplify {
     this.predicateElimination = predicateElimination;
     this.paranoid = paranoid;
     this.executor = Objects.requireNonNull(executor);
+    this.strong = new Strong();
   }
 
   @Deprecated // to be removed before 2.0
@@ -176,6 +179,13 @@ public class RexSimplify {
   }
 
   private RexNode simplify_(RexNode e) {
+    if (strong.isNull(e)) {
+      // NULL integer must not be converted to FALSE even in unknownAsFalse mode
+      if (unknownAsFalse && e.getType().getSqlTypeName() == SqlTypeName.BOOLEAN) {
+        return rexBuilder.makeLiteral(false);
+      }
+      return rexBuilder.makeNullLiteral(e.getType());
+    }
     switch (e.getKind()) {
     case AND:
       return simplifyAnd((RexCall) e);
@@ -251,7 +261,8 @@ public class RexSimplify {
     // "1 != '1'" is unchanged because the types are not the same.
     if (o0.isA(SqlKind.LITERAL)
         && o1.isA(SqlKind.LITERAL)
-        && o0.getType().equals(o1.getType())) {
+        && SqlTypeUtil.equalSansNullability(rexBuilder.getTypeFactory(),
+              o0.getType(), o1.getType())) {
       final C v0 = ((RexLiteral) o0).getValueAs(clazz);
       final C v1 = ((RexLiteral) o1).getValueAs(clazz);
       if (v0 == null || v1 == null) {
@@ -366,12 +377,17 @@ public class RexSimplify {
     case NOT:
       // NOT NOT x ==> x
       return simplify_(((RexCall) a).getOperands().get(0));
+    case LITERAL:
+      if (a.getType().getSqlTypeName() == SqlTypeName.BOOLEAN
+          && !RexLiteral.isNullLiteral(a)) {
+        return rexBuilder.makeLiteral(!RexLiteral.booleanValue(a));
+      }
     }
     final SqlKind negateKind = a.getKind().negate();
     if (a.getKind() != negateKind) {
       return simplify_(
           rexBuilder.makeCall(RexUtil.op(negateKind),
-              ImmutableList.of(((RexCall) a).getOperands().get(0))));
+              ((RexCall) a).getOperands()));
     }
     final SqlKind negateKind2 = a.getKind().negateNullSafe();
     if (a.getKind() != negateKind2) {
@@ -430,8 +446,6 @@ public class RexSimplify {
       }
       if (kind == pred.kind) {
         return rexBuilder.makeLiteral(true);
-      } else {
-        return rexBuilder.makeLiteral(false);
       }
     }
     return null;
@@ -483,7 +497,7 @@ public class RexSimplify {
       final RexNode arg = ((RexCall) a).operands.get(0);
       return simplify_(rexBuilder.makeCall(notKind, arg));
     }
-    RexNode a2 = simplify_(a);
+    RexNode a2 = withUnknownAsFalse(false).simplify_(a);
     if (a != a2) {
       return rexBuilder.makeCall(RexUtil.op(kind), ImmutableList.of(a2));
     }
@@ -533,6 +547,9 @@ public class RexSimplify {
   private RexNode simplifyIsNull(RexNode a) {
     if (!a.getType().isNullable()) {
       return rexBuilder.makeLiteral(false);
+    }
+    if (RexUtil.isNull(a)) {
+      return rexBuilder.makeLiteral(true);
     }
     switch (Strong.policy(a.getKind())) {
     case NOT_NULL:
@@ -770,16 +787,19 @@ public class RexSimplify {
       }
       notSatisfiableNullables.add(notDisjunction);
     }
+
     if (notSatisfiableNullables != null) {
+      // Remove the intersection of "terms" and "notTerms"
       terms.removeAll(notSatisfiableNullables);
+      notTerms.removeAll(notSatisfiableNullables);
+
+      // The intersection simplify to "null and x1 is null and x2 is null..."
       terms.add(rexBuilder.makeNullLiteral(notSatisfiableNullables.get(0).getType()));
       for (RexNode notSatisfiableNullable : notSatisfiableNullables) {
         terms.add(
             simplifyIs((RexCall)
                 rexBuilder.makeCall(SqlStdOperatorTable.IS_NULL, notSatisfiableNullable)));
       }
-      // NULL AND (x IS NULL)
-      return rexBuilder.makeCall(SqlStdOperatorTable.AND, terms);
     }
     // Add the NOT disjunctions back in.
     for (RexNode notDisjunction : notTerms) {
