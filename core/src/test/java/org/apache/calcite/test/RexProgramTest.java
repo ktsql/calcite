@@ -1120,6 +1120,12 @@ public class RexProgramTest extends RexProgramBuilderBase {
             falseLiteral, trueLiteral),
         "OR(?0.a, AND(?0.d, NOT(?0.b), NOT(?0.c)), AND(NOT(?0.b), NOT(?0.c), NOT(?0.e)))");
 
+    checkSimplify(
+        case_(eq(falseLiteral, falseLiteral), falseLiteral,
+              eq(falseLiteral, falseLiteral), trueLiteral,
+              trueLiteral
+    ), "false");
+
     // is null, applied to not-null value
     checkSimplify(rexBuilder.makeCall(SqlStdOperatorTable.IS_NULL, aRef),
         "false");
@@ -1204,7 +1210,8 @@ public class RexProgramTest extends RexProgramBuilderBase {
     checkSimplify(coalesce(iRef, literal1), "COALESCE(?0.i, 1)");
     checkSimplify(coalesce(iRef, plus(iRef, hRef), literal1, hRef),
         "COALESCE(?0.i, +(?0.i, ?0.h), 1)");
-
+    checkSimplify2(coalesce(gt(nullInt, nullInt), trueLiteral),
+        "COALESCE(null, true)", "COALESCE(null, true)");
     // "(not x) is null" to "x is null"
     checkSimplify(isNull(not(vBool())), "IS NULL(?0.bool0)");
     checkSimplify(isNull(not(vBoolNotNull())), "false");

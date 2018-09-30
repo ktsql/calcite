@@ -577,8 +577,9 @@ public class RexSimplify {
   private RexNode simplifyCoalesce(RexCall call) {
     final Set<String> digests = new HashSet<>();
     final List<RexNode> operands = new ArrayList<>();
+    final RexSimplify simplify = withUnknownAsFalse(false);
     for (RexNode operand : call.getOperands()) {
-      operand = simplify_(operand);
+      operand = simplify.simplify_(operand);
       if (digests.add(operand.digest)) {
         operands.add(operand);
       }
@@ -705,11 +706,11 @@ public class RexSimplify {
           notTerms.add(pair.e.getKey());
         }
       }
-      final RexNode disjunction = RexUtil.composeDisjunction(rexBuilder, terms);
+      RexNode disjunction = RexUtil.composeDisjunction(rexBuilder, terms);
       if (!call.getType().equals(disjunction.getType())) {
-        return rexBuilder.makeCast(call.getType(), disjunction);
+        disjunction = rexBuilder.makeCast(call.getType(), disjunction);
       }
-      return disjunction;
+      return simplify_(disjunction);
     }
     if (newOperands.equals(operands)) {
       return call;

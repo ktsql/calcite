@@ -16,10 +16,12 @@
  */
 package org.apache.calcite.test;
 
+import org.apache.calcite.TestKtTest;
 import org.apache.calcite.adapter.clone.ArrayTableTest;
 import org.apache.calcite.jdbc.CalciteRemoteDriverTest;
 import org.apache.calcite.plan.RelOptPlanReaderTest;
 import org.apache.calcite.plan.RelOptUtilTest;
+import org.apache.calcite.plan.RelTraitTest;
 import org.apache.calcite.plan.RelWriterTest;
 import org.apache.calcite.plan.volcano.CollationConversionTest;
 import org.apache.calcite.plan.volcano.ComboRuleTest;
@@ -81,6 +83,7 @@ import org.junit.runners.Suite;
 @RunWith(Suite.class)
 @Suite.SuiteClasses({
     // very fast tests (under 0.1s)
+    TestKtTest.class,
     ArrayTableTest.class,
     BitSetsTest.class,
     ImmutableBitSetTest.class,
@@ -103,6 +106,7 @@ import org.junit.runners.Suite;
     InterpreterTest.class,
     TestUtilTest.class,
     VolcanoPlannerTest.class,
+    RelTraitTest.class,
     HepPlannerTest.class,
     TraitPropagationTest.class,
     RelDistributionTest.class,
