@@ -43,6 +43,7 @@ import org.apache.calcite.util.Pair;
 import org.apache.calcite.util.Util;
 
 import com.google.common.collect.ImmutableList;
+import sun.reflect.generics.reflectiveObjects.NotImplementedException;
 
 import java.io.PrintWriter;
 import java.io.StringWriter;
@@ -83,6 +84,15 @@ public class SqlDdlNodes {
       SqlNode query) {
     return new SqlCreateTable(pos, replace, ifNotExists, name, columnList,
         query);
+  }
+
+  public static SqlCreateIndex createIndex(SqlParserPos pos, boolean replace,
+                                           boolean ifNotExists,
+                                           SqlIdentifier id,
+                                           SqlIdentifier indexType,
+                                           SqlIdentifier table,
+                                           SqlNodeList indexElementList) {
+    return new SqlCreateIndex(pos, replace, ifNotExists, id, indexType, table, indexElementList);
   }
 
   /** Creates a CREATE VIEW. */
@@ -127,6 +137,11 @@ public class SqlDdlNodes {
   public static SqlDrop dropMaterializedView(SqlParserPos pos,
       boolean ifExists, SqlIdentifier name) {
     return new SqlDropMaterializedView(pos, ifExists, name);
+  }
+
+  public static SqlDropIndex dropIndex(SqlParserPos pos,
+                                  boolean ifExists, SqlIdentifier id, SqlIdentifier table) {
+    return new SqlDropIndex(pos, ifExists, id, table);
   }
 
   /** Creates a column declaration. */

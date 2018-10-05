@@ -33,6 +33,7 @@ data: {
         "MATERIALIZED"
         "STORED"
         "VIRTUAL"
+        "INDEX"
       ]
 
       # List of keywords from "keywords" section that are not reserved.
@@ -41,6 +42,7 @@ data: {
         "MATERIALIZED"
         "STORED"
         "VIRTUAL"
+        "INDEX"
       ]
 
       # List of additional join types. Each is a method with no arguments.
@@ -75,6 +77,7 @@ data: {
         "SqlCreateTable"
         "SqlCreateType"
         "SqlCreateView"
+        "SqlCreateIndex"
       ]
 
       # List of methods for parsing extensions to "DROP" calls.
@@ -85,6 +88,7 @@ data: {
         "SqlDropTable"
         "SqlDropType"
         "SqlDropView"
+        "SqlDropIndex"
       ]
 
       # List of files in @includes directory that have parser method

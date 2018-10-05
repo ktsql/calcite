@@ -364,4 +364,59 @@ SqlDrop SqlDropMaterializedView(Span s, boolean replace) :
     }
 }
 
+SqlNodeList IndexElementList() :
+{
+    final Span s;
+    final List<SqlNode> list = new ArrayList<SqlNode>();
+}
+{
+    <LPAREN> { s = span(); }
+    IndexElement(list)
+    (
+        <COMMA> IndexElement(list)
+    )*
+    <RPAREN> {
+        return new SqlNodeList(list, s.end(this));
+    }
+}
+
+void IndexElement(List<SqlNode> list) :
+{
+    final SqlIdentifier id;
+}
+{
+    id = SimpleIdentifier()
+    {
+       list.add(id);
+   }
+}
+
+SqlCreate SqlCreateIndex(Span s, boolean replace) :
+{
+    final boolean ifNotExists;
+    final SqlIdentifier id;
+    SqlIdentifier indexType = null;
+    final SqlIdentifier table;
+    SqlNodeList indexElementList;
+}
+{
+    <INDEX> ifNotExists = IfNotExistsOpt() id = CompoundIdentifier() [ <LPAREN> indexType = CompoundIdentifier() <RPAREN>] <ON> table = CompoundIdentifier() <LPAREN> indexElementList = IndexElementList() <RPAREN>
+    {
+        return SqlDdlNodes.createIndex(s.end(this), replace, ifNotExists, id, indexType, table,
+            indexElementList);
+    }
+}
+
+SqlDrop SqlDropIndex(Span s, boolean replace) :
+{
+    final boolean ifExists;
+    final SqlIdentifier id;
+    final SqlIdentifier table;
+}
+{
+    <INDEX> ifExists = IfExistsOpt() id = CompoundIdentifier() <ON> table = CompoundIdentifier() {
+        return SqlDdlNodes.dropIndex(s.end(this), ifExists, id, table);
+    }
+}
+
 // End parserImpls.ftl
