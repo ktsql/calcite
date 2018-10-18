@@ -16,6 +16,7 @@
  */
 package org.apache.calcite.sql.ddl;
 
+import me.principality.ktsql.backend.hbase.HBaseSchema;
 import org.apache.calcite.adapter.java.JavaTypeFactory;
 import org.apache.calcite.jdbc.CalcitePrepare;
 import org.apache.calcite.jdbc.CalciteSchema;
@@ -38,12 +39,7 @@ import org.apache.calcite.rel.type.RelDataTypeField;
 import org.apache.calcite.rel.type.RelDataTypeImpl;
 import org.apache.calcite.rel.type.RelProtoDataType;
 import org.apache.calcite.rex.RexNode;
-import org.apache.calcite.schema.ColumnStrategy;
-import org.apache.calcite.schema.ModifiableTable;
-import org.apache.calcite.schema.SchemaPlus;
-import org.apache.calcite.schema.Schemas;
-import org.apache.calcite.schema.TranslatableTable;
-import org.apache.calcite.schema.Wrapper;
+import org.apache.calcite.schema.*;
 import org.apache.calcite.schema.impl.AbstractTable;
 import org.apache.calcite.schema.impl.AbstractTableQueryable;
 import org.apache.calcite.schema.impl.ViewTable;
@@ -227,10 +223,20 @@ public class SqlCreateTable extends SqlCreate
       return;
     }
     // Table does not exist. Create it.
-    pair.left.add(pair.right,
-        new MutableArrayTable(pair.right,
-            RelDataTypeImpl.proto(storedRowType),
-            RelDataTypeImpl.proto(rowType), ief));
+    Table table;
+    Schema schema = context.getRootSchema().schema;
+    if (schema instanceof HBaseSchema) {
+      HBaseSchema hBaseSchema = (HBaseSchema) schema;
+      table = hBaseSchema.createTable(pair.right,
+              RelDataTypeImpl.proto(storedRowType),
+              RelDataTypeImpl.proto(rowType), ief);
+    } else {
+      table = new MutableArrayTable(pair.right,
+              RelDataTypeImpl.proto(storedRowType),
+              RelDataTypeImpl.proto(rowType), ief);
+    }
+
+    pair.left.add(pair.right, table);
     if (query != null) {
       SqlDdlNodes.populate(name, query, context);
     }

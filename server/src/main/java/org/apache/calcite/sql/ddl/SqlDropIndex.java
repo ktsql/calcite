@@ -38,7 +38,7 @@ public class SqlDropIndex extends SqlDropObject {
         final boolean existed;
         switch (getKind()) {
             case DROP_INDEX:
-                throw new NotImplementedException();
+                //throw new NotImplementedException();
                 //break;
             default:
                 throw new AssertionError(getKind());

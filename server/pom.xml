@@ -55,6 +55,13 @@ limitations under the License.
       <groupId>org.apache.calcite</groupId>
       <artifactId>calcite-linq4j</artifactId>
     </dependency>
+    <dependency>
+      <groupId>me.principality</groupId>
+      <artifactId>kt-sql-hbase-ex</artifactId>
+      <version>1.0-SNAPSHOT</version>
+      <scope>system</scope>
+      <systemPath>${project.basedir}/../../kt-sql-hbase-ex/build/libs/kt-sql-hbase-ex-1.0-SNAPSHOT.jar</systemPath>
+    </dependency>
 
     <dependency>
       <groupId>com.google.guava</groupId>

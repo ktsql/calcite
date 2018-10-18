@@ -193,7 +193,7 @@ public class SqlDdlNodes {
     CalciteSchema schema = mutable ? context.getMutableRootSchema()
         : context.getRootSchema();
     for (String p : path) {
-      schema = schema.getSubSchema(p, true);
+      schema = schema.getSubSchema(p, false); // 修改强制大小写的处理
     }
     return Pair.of(schema, name);
   }

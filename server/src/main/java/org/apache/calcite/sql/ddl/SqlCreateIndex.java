@@ -64,6 +64,6 @@ public class SqlCreateIndex extends SqlCreate implements SqlExecutableStatement 
 
     @Override
     public void execute(CalcitePrepare.Context context) {
-        throw new NotImplementedException(); // add index to schema and storage
+        //throw new NotImplementedException(); // add index to schema and storage
     }
 }
