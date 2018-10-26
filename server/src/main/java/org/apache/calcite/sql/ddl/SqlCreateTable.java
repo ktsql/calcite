@@ -224,9 +224,9 @@ public class SqlCreateTable extends SqlCreate
     }
     // Table does not exist. Create it.
     Table table;
-    Schema schema = context.getRootSchema().schema;
-    if (schema instanceof HBaseSchema) {
-      HBaseSchema hBaseSchema = (HBaseSchema) schema;
+    String schemaName = context.getDefaultSchemaPath().size() > 0 ? context.getDefaultSchemaPath().get(0) : "";
+    if (schemaName.equals("HBASE")) {
+      HBaseSchema hBaseSchema = (HBaseSchema) context.getRootSchema().getSubSchema("HBASE", true).schema;
       table = hBaseSchema.createTable(pair.right,
               RelDataTypeImpl.proto(storedRowType),
               RelDataTypeImpl.proto(rowType), ief);

@@ -62,6 +62,10 @@ public class SqlCreateIndex extends SqlCreate implements SqlExecutableStatement 
         return ImmutableNullableList.of(indexName, indexType, indexKeys);
     }
 
+    /**
+     * 创建索引的时候，首先需要对所有的数据建立索引表，然后在元数据表中插入索引信息。
+     * @param context
+     */
     @Override
     public void execute(CalcitePrepare.Context context) {
         //throw new NotImplementedException(); // add index to schema and storage
