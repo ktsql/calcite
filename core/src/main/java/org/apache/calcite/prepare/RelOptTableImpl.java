@@ -143,17 +143,17 @@ public class RelOptTableImpl extends Prepare.AbstractPreparingTable {
 
   private static Function<Class, Expression> getClassExpressionFunction(
       final SchemaPlus schema, final String tableName, final Table table) {
-    if (table instanceof QueryableTable) {
-      final QueryableTable queryableTable = (QueryableTable) table;
-      return clazz -> queryableTable.getExpression(schema, tableName, clazz);
-    } else if (table instanceof ScannableTable
-        || table instanceof FilterableTable
-        || table instanceof ProjectableFilterableTable) {
+    if (table instanceof ScannableTable
+            || table instanceof FilterableTable
+            || table instanceof ProjectableFilterableTable) {
       return clazz -> Schemas.tableExpression(schema, Object[].class, tableName,
-          table.getClass());
+              table.getClass());
     } else if (table instanceof StreamableTable) {
       return getClassExpressionFunction(schema, tableName,
           ((StreamableTable) table).stream());
+    } else if (table instanceof QueryableTable) {
+      final QueryableTable queryableTable = (QueryableTable) table;
+      return clazz -> queryableTable.getExpression(schema, tableName, clazz);
     } else {
       return input -> {
         throw new UnsupportedOperationException();
