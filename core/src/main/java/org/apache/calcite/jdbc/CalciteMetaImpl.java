@@ -79,7 +79,7 @@ import java.util.regex.Pattern;
  * {@link org.apache.calcite.avatica.AvaticaDatabaseMetaData#getTables}.
  */
 public class CalciteMetaImpl extends MetaImpl {
-  static final Driver DRIVER = new Driver();
+  static Driver DRIVER;
 
   public CalciteMetaImpl(CalciteConnectionImpl connection) {
     super(connection);
@@ -88,6 +88,12 @@ public class CalciteMetaImpl extends MetaImpl {
         .setReadOnly(false)
         .setTransactionIsolation(Connection.TRANSACTION_NONE);
     this.connProps.setDirty(false);
+
+  }
+
+  public CalciteMetaImpl(CalciteConnectionImpl connection, Driver driver) {
+    this(connection);
+    DRIVER = driver;
   }
 
   static <T extends Named> Predicate1<T> namedMatcher(final Pat pattern) {
