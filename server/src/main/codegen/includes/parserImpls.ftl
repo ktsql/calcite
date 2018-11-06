@@ -388,7 +388,7 @@ void IndexElement(List<SqlNode> list) :
     id = SimpleIdentifier()
     {
        list.add(id);
-   }
+    }
 }
 
 SqlCreate SqlCreateIndex(Span s, boolean replace) :
@@ -400,7 +400,7 @@ SqlCreate SqlCreateIndex(Span s, boolean replace) :
     SqlNodeList indexElementList;
 }
 {
-    <INDEX> ifNotExists = IfNotExistsOpt() id = CompoundIdentifier() [ <LPAREN> indexType = CompoundIdentifier() <RPAREN>] <ON> table = CompoundIdentifier() <LPAREN> indexElementList = IndexElementList() <RPAREN>
+    <INDEX> ifNotExists = IfNotExistsOpt() id = CompoundIdentifier() [ <LPAREN> indexType = CompoundIdentifier() <RPAREN>] <ON> table = CompoundIdentifier() indexElementList = IndexElementList()
     {
         return SqlDdlNodes.createIndex(s.end(this), replace, ifNotExists, id, indexType, table,
             indexElementList);

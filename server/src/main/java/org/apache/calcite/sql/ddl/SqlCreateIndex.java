@@ -1,6 +1,8 @@
 package org.apache.calcite.sql.ddl;
 
 import com.google.common.collect.ImmutableList;
+import me.principality.ktsql.backend.hbase.HBaseSchema;
+import me.principality.ktsql.backend.hbase.HBaseTable;
 import org.apache.calcite.adapter.java.JavaTypeFactory;
 import org.apache.calcite.jdbc.CalcitePrepare;
 import org.apache.calcite.jdbc.CalciteSchema;
@@ -68,6 +70,28 @@ public class SqlCreateIndex extends SqlCreate implements SqlExecutableStatement 
      */
     @Override
     public void execute(CalcitePrepare.Context context) {
-        //throw new NotImplementedException(); // add index to schema and storage
+        final List<String> path = context.getDefaultSchemaPath();
+        CalciteSchema schema = context.getRootSchema();
+        for (String p : path) {
+            schema = schema.getSubSchema(p, true);
+        }
+        switch (getKind()) {
+            case CREATE_INDEX:
+                if (schema.schema instanceof HBaseSchema) {
+                    List<String> keys = new ArrayList<>();
+                    List<Boolean> isAscList = new ArrayList<>();
+                    for (SqlNode node : indexKeys) {
+                        // fixme 这里要支持desc|asc
+                        keys.add(node.toString());
+                        isAscList.add(false);
+                    }
+                    ((HBaseSchema) schema.schema).createIndex(indexName.getSimple(),
+                            indexType != null ? indexType.getSimple(): HBaseTable.IndexType.KEY_VALUE.name(),
+                            table.getSimple(), keys, isAscList);
+                }
+                break;
+            default:
+                throw new AssertionError(getKind());
+        }
     }
 }

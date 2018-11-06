@@ -16,6 +16,7 @@
  */
 package org.apache.calcite.sql.ddl;
 
+import me.principality.ktsql.backend.hbase.HBaseSchema;
 import org.apache.calcite.jdbc.CalcitePrepare;
 import org.apache.calcite.jdbc.CalciteSchema;
 import org.apache.calcite.sql.SqlDrop;
@@ -31,6 +32,7 @@ import com.google.common.collect.ImmutableList;
 
 import java.util.List;
 
+import static org.apache.calcite.sql.SqlKind.DROP_TABLE;
 import static org.apache.calcite.util.Static.RESOURCE;
 
 /**
@@ -74,6 +76,12 @@ abstract class SqlDropObject extends SqlDrop
       if (!existed && !ifExists) {
         throw SqlUtil.newContextException(name.getParserPosition(),
             RESOURCE.tableNotFound(name.getSimple()));
+      }
+      // 这里增加删除表的处理，如果发生异常，由dropTable直接抛出到外层
+      if (DROP_TABLE == getKind()) {
+        if (schema.schema instanceof HBaseSchema) {
+          ((HBaseSchema) schema.schema).dropTable(name.getSimple());
+        }
       }
       break;
     case DROP_VIEW:
