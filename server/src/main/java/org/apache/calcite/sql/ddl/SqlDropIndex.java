@@ -1,6 +1,7 @@
 package org.apache.calcite.sql.ddl;
 
 import me.principality.ktsql.backend.hbase.HBaseSchema;
+import me.principality.ktsql.backend.hbase.HBaseTable;
 import org.apache.calcite.jdbc.CalcitePrepare;
 import org.apache.calcite.jdbc.CalciteSchema;
 import org.apache.calcite.sql.SqlIdentifier;
@@ -39,7 +40,7 @@ public class SqlDropIndex extends SqlDropObject {
         switch (getKind()) {
             case DROP_INDEX:
                 if (schema.schema instanceof HBaseSchema) {
-                    ((HBaseSchema) schema.schema).dropIndex(table.getSimple());
+                    ((HBaseSchema) schema.schema).dropIndex(table.getSimple(), name.getSimple(), HBaseTable.IndexType.KEY_VALUE);
                 }
                 break;
             default:

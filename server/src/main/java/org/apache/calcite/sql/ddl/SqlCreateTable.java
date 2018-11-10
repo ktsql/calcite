@@ -160,6 +160,7 @@ public class SqlCreateTable extends SqlCreate
     final ImmutableList.Builder<ColumnDef> b = ImmutableList.builder();
     final RelDataTypeFactory.Builder builder = typeFactory.builder();
     final RelDataTypeFactory.Builder storedBuilder = typeFactory.builder();
+    List<String> keyConstraint = null;
     for (Ord<SqlNode> c : Ord.zip(columnList)) {
       if (c.e instanceof SqlColumnDeclaration) {
         final SqlColumnDeclaration d = (SqlColumnDeclaration) c.e;
@@ -190,6 +191,15 @@ public class SqlCreateTable extends SqlCreate
         b.add(ColumnDef.of(c.e, f.getType(), strategy));
         builder.add(id.getSimple(), f.getType());
         storedBuilder.add(id.getSimple(), f.getType());
+      } else if (c.e instanceof SqlKeyConstraint) {
+        final SqlKeyConstraint primary = (SqlKeyConstraint) c.e;
+        if (primary.getOperator() == SqlKeyConstraint.PRIMARY) {
+          keyConstraint = new ArrayList<>(primary.getOperandList().size());
+          for (SqlNode operand : primary.getOperandList()) {
+            keyConstraint.add(operand.toString());
+          }
+          b.add(ColumnDef.of(primary, null, ColumnStrategy.DEFAULT));
+        }
       } else {
         throw new AssertionError(c.e.getClass());
       }
@@ -229,7 +239,7 @@ public class SqlCreateTable extends SqlCreate
       HBaseSchema hBaseSchema = (HBaseSchema) context.getRootSchema().getSubSchema("HBASE", true).schema;
       table = hBaseSchema.createTable(pair.right,
               RelDataTypeImpl.proto(storedRowType),
-              RelDataTypeImpl.proto(rowType), ief);
+              RelDataTypeImpl.proto(rowType), ief, keyConstraint);
     } else {
       table = new MutableArrayTable(pair.right,
               RelDataTypeImpl.proto(storedRowType),
