@@ -66,10 +66,7 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 
 import java.lang.reflect.Type;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
-import java.util.Objects;
+import java.util.*;
 
 import static org.apache.calcite.util.Static.RESOURCE;
 
@@ -161,6 +158,7 @@ public class SqlCreateTable extends SqlCreate
     final RelDataTypeFactory.Builder builder = typeFactory.builder();
     final RelDataTypeFactory.Builder storedBuilder = typeFactory.builder();
     List<String> keyConstraint = null;
+    Map<String, Object> defaultValues = new HashMap<>();
     for (Ord<SqlNode> c : Ord.zip(columnList)) {
       if (c.e instanceof SqlColumnDeclaration) {
         final SqlColumnDeclaration d = (SqlColumnDeclaration) c.e;
@@ -178,6 +176,9 @@ public class SqlCreateTable extends SqlCreate
           storedBuilder.add(d.name.getSimple(), type);
         }
         b.add(ColumnDef.of(d.expression, type, d.strategy));
+        if (d.strategy == ColumnStrategy.DEFAULT) {
+          defaultValues.put(d.name.getSimple(), d.expression.toString());
+        }
       } else if (c.e instanceof SqlIdentifier) {
         final SqlIdentifier id = (SqlIdentifier) c.e;
         if (queryRowType == null) {
@@ -194,11 +195,11 @@ public class SqlCreateTable extends SqlCreate
       } else if (c.e instanceof SqlKeyConstraint) {
         final SqlKeyConstraint primary = (SqlKeyConstraint) c.e;
         if (primary.getOperator() == SqlKeyConstraint.PRIMARY) {
-          keyConstraint = new ArrayList<>(primary.getOperandList().size());
-          for (SqlNode operand : primary.getOperandList()) {
+          SqlNodeList nodes = (SqlNodeList)primary.getOperandList().get(1);
+          keyConstraint = new ArrayList<>(nodes.size());
+          for (SqlNode operand : nodes) {
             keyConstraint.add(operand.toString());
           }
-          b.add(ColumnDef.of(primary, null, ColumnStrategy.DEFAULT));
         }
       } else {
         throw new AssertionError(c.e.getClass());
@@ -239,7 +240,7 @@ public class SqlCreateTable extends SqlCreate
       HBaseSchema hBaseSchema = (HBaseSchema) context.getRootSchema().getSubSchema("HBASE", true).schema;
       table = hBaseSchema.createTable(pair.right,
               RelDataTypeImpl.proto(storedRowType),
-              RelDataTypeImpl.proto(rowType), ief, keyConstraint);
+              RelDataTypeImpl.proto(rowType), ief, keyConstraint, defaultValues);
     } else {
       table = new MutableArrayTable(pair.right,
               RelDataTypeImpl.proto(storedRowType),
