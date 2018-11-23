@@ -17,11 +17,7 @@
 package org.apache.calcite.adapter.enumerable;
 
 import org.apache.calcite.adapter.java.JavaTypeFactory;
-import org.apache.calcite.linq4j.tree.BlockBuilder;
-import org.apache.calcite.linq4j.tree.Expression;
-import org.apache.calcite.linq4j.tree.Expressions;
-import org.apache.calcite.linq4j.tree.ParameterExpression;
-import org.apache.calcite.linq4j.tree.Types;
+import org.apache.calcite.linq4j.tree.*;
 import org.apache.calcite.plan.RelOptCluster;
 import org.apache.calcite.plan.RelOptTable;
 import org.apache.calcite.plan.RelTraitSet;
@@ -114,6 +110,16 @@ public class EnumerableTableModify extends TableModify
         expressionList.add(
             childPhysType.fieldReference(o_, i, physType.getJavaFieldType(i)));
       }
+      // 通过into的函数，传进去更多的操作目标，把数据进行更新
+      if (getOperation() == Operation.UPDATE) {
+        int startPos = fieldCount;
+        for (String target : getUpdateColumnList()) {
+          // 在expressionList中添加需要更新的目标对象, hack it!
+          Expression expression1 = new ConstantExpression(String.class, target);
+          expressionList.add(expression1);
+          startPos++;
+        }
+      }
       convertedChildExp =
           builder.append(
               "convertedChild",
@@ -128,6 +134,7 @@ public class EnumerableTableModify extends TableModify
     final Method method;
     switch (getOperation()) {
     case INSERT:
+    case UPDATE: // 这里都用into的做法，根据参数决定是insert/update
       method = BuiltInMethod.INTO.method;
       break;
     case DELETE:

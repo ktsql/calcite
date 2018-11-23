@@ -72,7 +72,8 @@ abstract class SqlDropObject extends SqlDrop
     switch (getKind()) {
     case DROP_TABLE:
     case DROP_MATERIALIZED_VIEW:
-      existed = schema.removeTable(name.getSimple());
+      String tableName = name.isSimple() ? name.getSimple() : removePath(path);
+      existed = schema.removeTable(tableName);
       if (!existed && !ifExists) {
         throw SqlUtil.newContextException(name.getParserPosition(),
             RESOURCE.tableNotFound(name.getSimple()));
@@ -80,7 +81,7 @@ abstract class SqlDropObject extends SqlDrop
       // 这里增加删除表的处理，如果发生异常，由dropTable直接抛出到外层
       if (DROP_TABLE == getKind()) {
         if (schema.schema instanceof HBaseSchema) {
-          ((HBaseSchema) schema.schema).dropTable(name.getSimple());
+          ((HBaseSchema) schema.schema).dropTable(tableName);
         }
       }
       break;
@@ -102,6 +103,10 @@ abstract class SqlDropObject extends SqlDrop
     default:
       throw new AssertionError(getKind());
     }
+  }
+
+  private String removePath(List<String> path) {
+    return name.names.get(name.names.size()-1);
   }
 }
 
