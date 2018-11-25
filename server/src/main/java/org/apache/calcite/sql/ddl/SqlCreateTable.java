@@ -78,17 +78,19 @@ public class SqlCreateTable extends SqlCreate
   private final SqlIdentifier name;
   private final SqlNodeList columnList;
   private final SqlNode query;
+  private final boolean isTransactional;
 
   private static final SqlOperator OPERATOR =
       new SqlSpecialOperator("CREATE TABLE", SqlKind.CREATE_TABLE);
 
   /** Creates a SqlCreateTable. */
   SqlCreateTable(SqlParserPos pos, boolean replace, boolean ifNotExists,
-      SqlIdentifier name, SqlNodeList columnList, SqlNode query) {
+      SqlIdentifier name, SqlNodeList columnList, SqlNode query, boolean isTransactional) {
     super(OPERATOR, pos, replace, ifNotExists);
     this.name = Objects.requireNonNull(name);
     this.columnList = columnList; // may be null
     this.query = query; // for "CREATE TABLE ... AS query"; may be null
+    this.isTransactional = isTransactional;
   }
 
   public List<SqlNode> getOperandList() {
@@ -240,7 +242,7 @@ public class SqlCreateTable extends SqlCreate
       HBaseSchema hBaseSchema = (HBaseSchema) context.getRootSchema().getSubSchema("HBASE", true).schema;
       table = hBaseSchema.createTable(pair.right,
               RelDataTypeImpl.proto(storedRowType),
-              RelDataTypeImpl.proto(rowType), ief, keyConstraint, defaultValues);
+              RelDataTypeImpl.proto(rowType), ief, keyConstraint, defaultValues, isTransactional);
     } else {
       table = new MutableArrayTable(pair.right,
               RelDataTypeImpl.proto(storedRowType),

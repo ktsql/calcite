@@ -81,9 +81,9 @@ public class SqlDdlNodes {
   /** Creates a CREATE TABLE. */
   public static SqlCreateTable createTable(SqlParserPos pos, boolean replace,
       boolean ifNotExists, SqlIdentifier name, SqlNodeList columnList,
-      SqlNode query) {
+      SqlNode query, boolean isTransactional) {
     return new SqlCreateTable(pos, replace, ifNotExists, name, columnList,
-        query);
+        query, isTransactional);
   }
 
   public static SqlCreateIndex createIndex(SqlParserPos pos, boolean replace,

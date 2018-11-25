@@ -260,14 +260,16 @@ SqlCreate SqlCreateTable(Span s, boolean replace) :
     final SqlIdentifier id;
     SqlNodeList tableElementList = null;
     SqlNode query = null;
+    final boolean isTransactional = false;
 }
 {
     <TABLE> ifNotExists = IfNotExistsOpt() id = CompoundIdentifier()
     [ tableElementList = TableElementList() ]
     [ <AS> query = OrderedQueryOrExpr(ExprContext.ACCEPT_QUERY) ]
+    [ <TRANSACTIONAL> <EQ> <TRUE> { isTransactional = true; } | <FALSE> { isTransactional = false; } ]
     {
         return SqlDdlNodes.createTable(s.end(this), replace, ifNotExists, id,
-            tableElementList, query);
+            tableElementList, query, isTransactional);
     }
 }
 

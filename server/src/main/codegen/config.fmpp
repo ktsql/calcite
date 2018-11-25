@@ -34,6 +34,7 @@ data: {
         "STORED"
         "VIRTUAL"
         "INDEX"
+        "TRANSACTIONAL"
       ]
 
       # List of keywords from "keywords" section that are not reserved.
@@ -43,6 +44,7 @@ data: {
         "STORED"
         "VIRTUAL"
         "INDEX"
+        "TRANSACTIONAL"
       ]
 
       # List of additional join types. Each is a method with no arguments.
